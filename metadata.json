@@ -1,0 +1,6 @@
+{
+  "name": "Bouncy Blast Arcade",
+  "description": "A polished arcade-style bouncing ball game with physics-based gameplay, colorful targets, and satisfying animations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
