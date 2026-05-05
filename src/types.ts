@@ -1,3 +1,18 @@
+export enum PowerUpType {
+  MULTIBALL = 'MULTIBALL',
+  EXPAND_PADDLE = 'EXPAND_PADDLE',
+  SLOW_MOTION = 'SLOW_MOTION',
+  LASER = 'LASER'
+}
+
+export interface PowerUp {
+  id: string;
+  x: number;
+  y: number;
+  type: PowerUpType;
+  color: string;
+}
+
 export interface Ball {
   id: string;
   x: number;

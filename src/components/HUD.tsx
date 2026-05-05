@@ -5,49 +5,77 @@ import { GameState } from '../types';
 
 interface HUDProps {
   score: number;
+  highScore: number;
   lives: number;
+  level: number;
   gameState: GameState;
   onStart: () => void;
+  onNextLevel: () => void;
 }
 
-export const HUD: React.FC<HUDProps> = ({ score, lives, gameState, onStart }) => {
+export const HUD: React.FC<HUDProps> = ({ score, highScore, lives, level, gameState, onStart, onNextLevel }) => {
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-6 overflow-hidden">
       {/* Top Bar */}
       <div className="w-full flex justify-between items-start gap-4">
-        <motion.div 
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          className="bg-slate-900/40 backdrop-blur-md border-l-4 border-blue-500 rounded-r-2xl p-4 flex flex-col min-w-[140px] shadow-lg"
-        >
-          <span className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Score</span>
-          <span className="text-4xl font-black text-white tabular-nums tracking-tighter leading-none">
-            {score.toLocaleString().padStart(6, '0')}
-          </span>
-        </motion.div>
+        <div className="flex gap-4">
+          <motion.div 
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            className="bg-slate-900/40 backdrop-blur-md border-l-4 border-blue-500 rounded-r-2xl p-4 flex flex-col min-w-[140px] shadow-lg"
+          >
+            <span className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Score</span>
+            <span className="text-4xl font-black text-white tabular-nums tracking-tighter leading-none">
+              {score.toLocaleString().padStart(6, '0')}
+            </span>
+          </motion.div>
 
-        <motion.div 
-          initial={{ x: 20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          className="flex gap-3 bg-slate-900/40 backdrop-blur-md border border-slate-700/50 rounded-2xl p-3 shadow-lg"
-        >
-          {Array.from({ length: 3 }).map((_, i) => (
-            <motion.div
-              key={i}
-              initial={false}
-              animate={{
-                scale: i < lives ? 1 : 0.7,
-                opacity: i < lives ? 1 : 0.2,
-                rotate: i < lives ? 0 : -20
-              }}
-              className="relative"
-            >
-              <Heart 
-                className={`w-7 h-7 ${i < lives ? 'text-red-500 fill-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'text-slate-600'}`} 
-              />
-            </motion.div>
-          ))}
-        </motion.div>
+          <motion.div 
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="bg-slate-900/40 backdrop-blur-md border-l-4 border-amber-500 rounded-r-2xl p-4 flex flex-col min-w-[140px] shadow-lg"
+          >
+            <span className="text-amber-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Best</span>
+            <span className="text-4xl font-black text-white tabular-nums tracking-tighter leading-none">
+              {highScore.toLocaleString().padStart(6, '0')}
+            </span>
+          </motion.div>
+        </div>
+
+        <div className="flex flex-col items-end gap-3">
+          <motion.div 
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            className="flex gap-3 bg-slate-900/40 backdrop-blur-md border border-slate-700/50 rounded-2xl p-3 shadow-lg"
+          >
+            {Array.from({ length: 3 }).map((_, i) => (
+              <motion.div
+                key={i}
+                initial={false}
+                animate={{
+                  scale: i < lives ? 1 : 0.7,
+                  opacity: i < lives ? 1 : 0.2,
+                  rotate: i < lives ? 0 : -20
+                }}
+                className="relative"
+              >
+                <Heart 
+                  className={`w-7 h-7 ${i < lives ? 'text-red-500 fill-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'text-slate-600'}`} 
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+          
+          <motion.div
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="bg-slate-900/40 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-700/50"
+          >
+            <span className="text-slate-400 text-[10px] font-black tracking-widest uppercase">Level {level}</span>
+          </motion.div>
+        </div>
       </div>
 
       {/* Center Overlays */}
@@ -145,7 +173,7 @@ export const HUD: React.FC<HUDProps> = ({ score, lives, gameState, onStart }) =>
             </div>
             <button
               id="next-level-button"
-              onClick={onStart}
+              onClick={onNextLevel}
               className="flex items-center gap-4 bg-emerald-500 text-emerald-950 font-black py-5 px-14 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-emerald-500/20"
             >
               <Play className="w-6 h-6 fill-current" />

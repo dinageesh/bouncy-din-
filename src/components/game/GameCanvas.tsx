@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Ball, Brick, Particle, GameState } from '../../types';
+import { Ball, Brick, Particle, GameState, PowerUp, PowerUpType } from '../../types';
 import { 
   PADDLE_WIDTH, PADDLE_HEIGHT, BALL_RADIUS, 
   BRICK_ROWS, BRICK_COLS, BRICK_GAP,
-  INITIAL_BALL_SPEED, COLORS, SHAKE_INTENSITY 
+  INITIAL_BALL_SPEED, COLORS, SHAKE_INTENSITY,
+  POWER_UP_WIDTH, POWER_UP_HEIGHT, POWER_UP_SPEED
 } from '../../constants';
 import confetti from 'canvas-confetti';
 
@@ -12,10 +13,11 @@ interface GameCanvasProps {
   onLivesUpdate: (lives: number) => void;
   onGameStateChange: (state: GameState) => void;
   gameState: GameState;
+  level: number;
 }
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({ 
-  onScoreUpdate, onLivesUpdate, onGameStateChange, gameState 
+  onScoreUpdate, onLivesUpdate, onGameStateChange, gameState, level
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -23,8 +25,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   // Game State Refs
   const ballsRef = useRef<Ball[]>([]);
   const bricksRef = useRef<Brick[]>([]);
+  const powerUpsRef = useRef<PowerUp[]>([]);
   const particlesRef = useRef<Particle[]>([]);
   const paddleXRef = useRef(0);
+  const paddleWidthRef = useRef(PADDLE_WIDTH);
   const scoreRef = useRef(0);
   const livesRef = useRef(3);
   const shakeRef = useRef(0);
@@ -34,11 +38,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const initBricks = useCallback((containerWidth: number) => {
     const bricks: Brick[] = [];
-    const brickWidth = (containerWidth - (BRICK_COLS + 1) * BRICK_GAP) / BRICK_COLS;
+    const currentCols = BRICK_COLS;
+    const currentRows = BRICK_ROWS + Math.min(level - 1, 3);
+    const brickWidth = (containerWidth - (currentCols + 1) * BRICK_GAP) / currentCols;
     const brickHeight = 24;
 
-    for (let r = 0; r < BRICK_ROWS; r++) {
-      for (let c = 0; c < BRICK_COLS; c++) {
+    for (let r = 0; r < currentRows; r++) {
+      for (let c = 0; c < currentCols; c++) {
         bricks.push({
           id: `brick-${r}-${c}`,
           x: BRICK_GAP + c * (brickWidth + BRICK_GAP),
@@ -52,7 +58,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       }
     }
     return bricks;
-  }, []);
+  }, [level]);
 
   const createParticles = (x: number, y: number, color: string, count: number = 8) => {
     for (let i = 0; i < count; i++) {
@@ -69,26 +75,26 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   };
 
-  const spawnBall = (x: number, y: number) => {
-    isLaunchedRef.current = false;
-    currentSpeedRef.current = INITIAL_BALL_SPEED;
-    ballsRef.current = [{
+  const spawnBall = (x: number, y: number, vx: number = 0, vy: number = 0) => {
+    const newBall: Ball = {
       id: Math.random().toString(36).substr(2, 9),
       x,
-      y: y - 10,
-      vx: 0,
-      vy: 0,
+      y,
+      vx,
+      vy,
       radius: BALL_RADIUS,
       color: COLORS.BALL,
       trail: []
-    }];
+    };
+    ballsRef.current.push(newBall);
+    return newBall;
   };
 
   const launchBall = () => {
     if (isLaunchedRef.current || ballsRef.current.length === 0) return;
     isLaunchedRef.current = true;
     const ball = ballsRef.current[0];
-    const angle = (Math.random() * Math.PI / 3) - Math.PI / 6 - Math.PI / 2; // Upwards
+    const angle = (Math.random() * Math.PI / 3) - Math.PI / 6 - Math.PI / 2;
     ball.vx = Math.cos(angle) * currentSpeedRef.current;
     ball.vy = Math.sin(angle) * currentSpeedRef.current;
   };
@@ -103,10 +109,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     onLivesUpdate(3);
     
     paddleXRef.current = (offsetWidth - PADDLE_WIDTH) / 2;
+    paddleWidthRef.current = PADDLE_WIDTH;
     bricksRef.current = initBricks(offsetWidth);
     ballsRef.current = [];
+    powerUpsRef.current = [];
     particlesRef.current = [];
-    spawnBall(offsetWidth / 2, offsetHeight - 40 - PADDLE_HEIGHT);
+    spawnBall(offsetWidth / 2, offsetHeight - 40 - PADDLE_HEIGHT - BALL_RADIUS);
+    isLaunchedRef.current = false;
   }, [initBricks, onScoreUpdate, onLivesUpdate]);
 
   useEffect(() => {
@@ -128,10 +137,47 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       return p.life > 0;
     });
 
+    // Update PowerUps
+    powerUpsRef.current = powerUpsRef.current.filter(pu => {
+      pu.y += POWER_UP_SPEED;
+      
+      // Collection
+      const paddleY = height - 40 - PADDLE_HEIGHT;
+      if (
+        pu.y + POWER_UP_HEIGHT > paddleY &&
+        pu.y < paddleY + PADDLE_HEIGHT &&
+        pu.x + POWER_UP_WIDTH > paddleXRef.current &&
+        pu.x < paddleXRef.current + paddleWidthRef.current
+      ) {
+        // Activate PowerUp
+        switch (pu.type) {
+          case PowerUpType.MULTIBALL:
+            ballsRef.current.slice().forEach(b => {
+              spawnBall(b.x, b.y, b.vx * -0.8, b.vy);
+              spawnBall(b.x, b.y, b.vx, b.vy * -0.8);
+            });
+            break;
+          case PowerUpType.EXPAND_PADDLE:
+            paddleWidthRef.current = Math.min(width * 0.4, paddleWidthRef.current + 40);
+            setTimeout(() => { paddleWidthRef.current = Math.max(PADDLE_WIDTH, paddleWidthRef.current - 40); }, 10000);
+            break;
+          case PowerUpType.SLOW_MOTION:
+            currentSpeedRef.current *= 0.5;
+            setTimeout(() => { currentSpeedRef.current *= 2; }, 5000);
+            break;
+        }
+        createParticles(pu.x + POWER_UP_WIDTH/2, pu.y + POWER_UP_HEIGHT/2, pu.color, 15);
+        shakeRef.current = 5;
+        return false;
+      }
+
+      return pu.y < height;
+    });
+
     // Update Balls
     ballsRef.current.forEach((ball, bIndex) => {
       if (!isLaunchedRef.current) {
-        ball.x = paddleXRef.current + PADDLE_WIDTH / 2;
+        ball.x = paddleXRef.current + paddleWidthRef.current / 2;
         ball.y = height - 40 - PADDLE_HEIGHT - ball.radius;
         return;
       }
@@ -148,19 +194,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       if (ball.x - ball.radius < 0) {
         ball.x = ball.radius;
         ball.vx *= -1;
-        shakeRef.current = 3;
+        shakeRef.current = 2;
         createParticles(ball.x, ball.y, ball.color, 3);
       } else if (ball.x + ball.radius > width) {
         ball.x = width - ball.radius;
         ball.vx *= -1;
-        shakeRef.current = 3;
+        shakeRef.current = 2;
         createParticles(ball.x, ball.y, ball.color, 3);
       }
 
       if (ball.y - ball.radius < 0) {
         ball.y = ball.radius;
         ball.vy *= -1;
-        shakeRef.current = 3;
+        shakeRef.current = 2;
         createParticles(ball.x, ball.y, ball.color, 3);
       }
 
@@ -171,9 +217,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ball.y + ball.radius > paddleY &&
         ball.y + ball.radius < paddleY + PADDLE_HEIGHT &&
         ball.x > paddleXRef.current &&
-        ball.x < paddleXRef.current + PADDLE_WIDTH
+        ball.x < paddleXRef.current + paddleWidthRef.current
       ) {
-        const hitPos = (ball.x - (paddleXRef.current + PADDLE_WIDTH / 2)) / (PADDLE_WIDTH / 2);
+        const hitPos = (ball.x - (paddleXRef.current + paddleWidthRef.current / 2)) / (paddleWidthRef.current / 2);
         const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
         const angle = hitPos * (Math.PI / 2.5) - Math.PI / 2;
         
@@ -198,10 +244,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           
           if (Math.abs(dx / brick.width) > Math.abs(dy / brick.height)) {
             ball.vx *= -1;
-            ball.x += ball.vx > 0 ? 1 : -1;
+            ball.x += ball.vx > 0 ? 2 : -2;
           } else {
             ball.vy *= -1;
-            ball.y += ball.vy > 0 ? 1 : -1;
+            ball.y += ball.vy > 0 ? 2 : -2;
           }
 
           brick.hp -= 1;
@@ -210,8 +256,21 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           shakeRef.current = 6;
           createParticles(ball.x, ball.y, brick.color, 10);
           
+          // Spawn PowerUp
+          if (Math.random() < 0.15) {
+            const types = [PowerUpType.MULTIBALL, PowerUpType.EXPAND_PADDLE, PowerUpType.SLOW_MOTION];
+            const type = types[Math.floor(Math.random() * types.length)];
+            powerUpsRef.current.push({
+              id: Math.random().toString(),
+              x: brick.x + brick.width / 2 - POWER_UP_WIDTH / 2,
+              y: brick.y,
+              type,
+              color: COLORS.POWER_UPS[type as keyof typeof COLORS.POWER_UPS]
+            });
+          }
+
           // Speed up slightly
-          currentSpeedRef.current = Math.min(INITIAL_BALL_SPEED * 2.5, currentSpeedRef.current + 0.1);
+          currentSpeedRef.current = Math.min(INITIAL_BALL_SPEED * 3, currentSpeedRef.current + 0.05);
           const currentSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
           const ratio = currentSpeedRef.current / currentSpeed;
           ball.vx *= ratio;
@@ -230,7 +289,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       bricksRef.current = bricksRef.current.filter(b => b.hp > 0);
 
-      // Bottom Collision (Miss)
+      // Bottom Collision
       if (ball.y + ball.radius > height) {
         ballsRef.current.splice(bIndex, 1);
         if (ballsRef.current.length === 0) {
@@ -239,7 +298,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           if (livesRef.current <= 0) {
             onGameStateChange(GameState.GAMEOVER);
           } else {
-            spawnBall(width / 2, height - 40 - PADDLE_HEIGHT);
+            spawnBall(width / 2, height - 40 - PADDLE_HEIGHT - ball.radius);
+            isLaunchedRef.current = false;
           }
         }
       }
@@ -273,22 +333,35 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.translate(sx, sy);
     }
 
-    // Draw Bricks
+    // Bricks
     bricksRef.current.forEach(brick => {
       ctx.fillStyle = brick.color;
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = brick.color;
       ctx.beginPath();
       ctx.roundRect(brick.x, brick.y, brick.width, brick.height, 4);
       ctx.fill();
-      ctx.shadowBlur = 0;
-      // Gloss effect
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
       ctx.fillRect(brick.x, brick.y, brick.width, brick.height / 2);
     });
 
-    // Draw Paddle
-    const gradient = ctx.createLinearGradient(paddleXRef.current, 0, paddleXRef.current + PADDLE_WIDTH, 0);
+    // Power Ups
+    powerUpsRef.current.forEach(pu => {
+      ctx.fillStyle = pu.color;
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = pu.color;
+      ctx.beginPath();
+      ctx.roundRect(pu.x, pu.y, POWER_UP_WIDTH, POWER_UP_HEIGHT, 8);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      
+      // Icon simplified
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.font = '16px bold sans-serif';
+      ctx.fillText(pu.type[0], pu.x + POWER_UP_WIDTH/2, pu.y + POWER_UP_HEIGHT/2 + 6);
+    });
+
+    // Paddle
+    const gradient = ctx.createLinearGradient(paddleXRef.current, 0, paddleXRef.current + paddleWidthRef.current, 0);
     gradient.addColorStop(0, COLORS.PADDLE);
     gradient.addColorStop(0.5, '#60a5fa');
     gradient.addColorStop(1, COLORS.PADDLE);
@@ -296,13 +369,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     ctx.shadowBlur = 20;
     ctx.shadowColor = COLORS.PADDLE;
     ctx.beginPath();
-    ctx.roundRect(paddleXRef.current, height - 40 - PADDLE_HEIGHT, PADDLE_WIDTH, PADDLE_HEIGHT, 8);
+    ctx.roundRect(paddleXRef.current, height - 40 - PADDLE_HEIGHT, paddleWidthRef.current, PADDLE_HEIGHT, 8);
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Draw Balls & Trails
+    // Balls
     ballsRef.current.forEach(ball => {
-      // Trail
       ball.trail.forEach((t, i) => {
         ctx.globalAlpha = t.opacity;
         ctx.fillStyle = ball.color;
@@ -311,8 +383,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.fill();
       });
       ctx.globalAlpha = 1.0;
-
-      // Ball
       ctx.fillStyle = ball.color;
       ctx.shadowBlur = 20;
       ctx.shadowColor = ball.color;
@@ -322,7 +392,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.shadowBlur = 0;
     });
 
-    // Draw Particles
+    // Particles
     particlesRef.current.forEach(p => {
       ctx.globalAlpha = p.life;
       ctx.fillStyle = p.color;
@@ -337,11 +407,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const loop = useCallback(() => {
     if (canvasRef.current) {
+      update(canvasRef.current);
       const ctx = canvasRef.current.getContext('2d');
-      if (ctx) {
-        update(canvasRef.current);
-        draw(ctx);
-      }
+      if (ctx) draw(ctx);
     }
     frameRef.current = requestAnimationFrame(loop);
   }, [update, draw]);
@@ -352,24 +420,24 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [loop]);
 
   useEffect(() => {
+    const handleMove = (x: number) => {
+       if (!containerRef.current) return;
+       const rect = containerRef.current.getBoundingClientRect();
+       paddleXRef.current = Math.max(0, Math.min(rect.width - paddleWidthRef.current, x - paddleWidthRef.current / 2));
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      paddleXRef.current = Math.max(0, Math.min(rect.width - PADDLE_WIDTH, x - PADDLE_WIDTH / 2));
+      handleMove(e.clientX - containerRef.current.getBoundingClientRect().left);
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       if (!containerRef.current || e.touches.length === 0) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = e.touches[0].clientX - rect.left;
-      paddleXRef.current = Math.max(0, Math.min(rect.width - PADDLE_WIDTH, x - PADDLE_WIDTH / 2));
+      handleMove(e.touches[0].clientX - containerRef.current.getBoundingClientRect().left);
     };
 
     const handleClick = () => {
-      if (gameState === GameState.PLAYING && !isLaunchedRef.current) {
-        launchBall();
-      }
+      if (gameState === GameState.PLAYING && !isLaunchedRef.current) launchBall();
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -390,9 +458,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         const { offsetWidth, offsetHeight } = containerRef.current;
         canvasRef.current.width = offsetWidth;
         canvasRef.current.height = offsetHeight;
-        if (bricksRef.current.length === 0) {
-           bricksRef.current = initBricks(offsetWidth);
-        }
+        bricksRef.current = initBricks(offsetWidth);
       }
     };
     handleResize();

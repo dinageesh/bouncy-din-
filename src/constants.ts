@@ -5,20 +5,30 @@ export const BRICK_GAP = 6;
 export const BRICK_ROWS = 5;
 export const BRICK_COLS = 8;
 export const INITIAL_BALL_SPEED = 5;
-export const GRAVITY = 0.15; // Set to 0 for classic brick breaker, > 0 for physics feel
-export const FRICTION = 0.99;
-export const WALL_BOUNCE = 0.9;
+export const GRAVITY = 0; 
+export const FRICTION = 1;
+export const WALL_BOUNCE = 1;
 export const SHAKE_INTENSITY = 8;
 
+export const POWER_UP_WIDTH = 30;
+export const POWER_UP_HEIGHT = 30;
+export const POWER_UP_SPEED = 3;
+
 export const COLORS = {
-  PADDLE: '#3b82f6', // blue-500
+  PADDLE: '#3b82f6', 
   BALL: '#ffffff',
   BRICKS: [
-    '#ef4444', // red-500
-    '#f59e0b', // amber-500
-    '#10b981', // emerald-500
-    '#3b82f6', // blue-500
-    '#8b5cf6', // violet-500
+    '#ef4444', 
+    '#f59e0b', 
+    '#10b981', 
+    '#3b82f6', 
+    '#8b5cf6', 
   ],
-  BACKGROUND: '#0f172a', // slate-900
+  POWER_UPS: {
+    MULTIBALL: '#10b981',
+    EXPAND_PADDLE: '#3b82f6',
+    SLOW_MOTION: '#f59e0b',
+    LASER: '#ef4444'
+  },
+  BACKGROUND: '#0f172a',
 };
